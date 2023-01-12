@@ -1,0 +1,3083 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Big Data Modelling and Management 2022"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Group number: 6**\n",
+    "\n",
+    "**Students (name : student number)**:\n",
+    "\n",
+    "\n",
+    "1. **João Morais Costa** 20211005\n",
+    "\n",
+    "\n",
+    "2. **Gonçalo Gomes** 20211007\n",
+    "\n",
+    "3. **Gabriel Avezum** 20210663 \n",
+    "\n",
+    "4. **Danilo Arfelli** - 20211296\n",
+    "\n",
+    "5. **Diogo Tomás Peixoto** - 20210993\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 🚚 BDMM Second Homework Assignment 🚚 \n",
+    "\n",
+    "_The Wide World Importers (WWI) is a wholesales novelty goods importer and distributor operating from the San Francisco bay area. In this assignment we will be working with their database._ \n",
+    "You can get more information and details about the WWI database in the following link: https://docs.microsoft.com/en-us/sql/samples/wide-world-importers-what-is?view=sql-server-ver15\n",
+    "\n",
+    "The focus of the second assignment is modelling. We will use the World Wide Importers database and convert it to a document-based database. To that end, we will be leveraging concepts like data denormalization, indices, and mongodb design patterns. \n",
+    "\n",
+    "More information on the extended datamodel to be found here: </br>  \n",
+    "https://docs.microsoft.com/en-us/sql/samples/wide-world-importers-oltp-database-catalog?view=sql-server-ver15"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Problem Description\n",
+    "\n",
+    "Your team has just arrived at WWI (a leading company in logistics). Welcome!   <br>\n",
+    "Even though business is thriving, the IT department is going through a bad time.   <br>\n",
+    "Digitalization was never a priority for the company and now the company operational and analytical requirements are starting to grow beyond the capabilities of their existing data architecture.   <br>\n",
+    "\n",
+    "WWI data are spread accross different systems, but we've already managed to pull them all into a mongo dump file. This data file is an exact dump of the SQL data so includes all the same structure, the SQL tables become collections and the rows become documents. This means all the original SQL keys are included in the data.<br>\n",
+    "Currently, the costs to develop the necessary queries to collect data to answer questions asked by the different departments are too high. <br>\n",
+    "\n",
+    "Management concluded it is the right time to revise and revamp the data architecture, in order to speed up operations. \n",
+    "\n",
+    "In that context, your team was tasked with merging all the company data into a single and coherent Mongo database. <br>\n",
+    "It is expected that, with your solution, WWI will have a better understanding of their business and that the different departments will be able to obtain efficiently the answers they need.\n",
+    "\n",
+    "The WWI team shared with you an ERD of their current datamodel:<br>\n",
+    "![datamodel](./WWI-v2.png)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Note** You can open the file WWI.png that is in the same directory as this notebook to see the above image in more detail and zoom in as you need.\n",
+    "\n",
+    "Addtionally, the WWI team asked you the deliver the following outputs in **4 weeks**:\n",
+    "- Understand and model the database in MongoDB.\n",
+    "- Setup the database so that it is performs well for the queries they have provided. You should include reasoning in comments for the decisions you make on modelling the database.\n",
+    "- Answer the questions (queries) on the data provided.  \n",
+    "- Submit the results by following the instructions.  \n",
+    "\n",
+    "With these deliveries, you will have created a prototype and allows the management to decide whether MongoDB is a good solution that meets their requirements."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Design Requirements\n",
+    "\n",
+    "Note that WWI has the following query requirements for the database.\n",
+    "\n",
+    "1. **The web team needs to know:**  \n",
+    "    1. Which state province do we have the most suppliers in?  \n",
+    "    2. How many people have three or more `OtherLanguage`? \n",
+    "    3. Top 10 most common `OtherLanguage` for people records. \n",
+    "    4. How many customer records are valid after `November 2015`? \n",
+    "    5. What percentage of people records don't have the UserPreferences field? \n",
+    "\n",
+    "\n",
+    "\n",
+    "2. **The warehouse group needs to know:**  \n",
+    "    1. What is the average difference in days between OrderDate and ExpectedDeliveryDate for orders sold by (`SalespersonPersonID`) person with the name `Jack Potter`?\n",
+    "    2. Which items get ordered the most in bulk (largest average quantity ordered)?  \n",
+    "    3. Which two items get ordered together the most?\n",
+    "    4. For each customer category which 3 items have the ordered the most?\n",
+    "    5. What is the current stock of each stockgroup?\n",
+    "    \n",
+    "\n",
+    "\n",
+    "3. **The CFO needs to know:**  \n",
+    "    1. What is the monthly total order count for each month?  \n",
+    "    2. How many orders are there from the customer `Tailspin Toys (Head Office)`?\n",
+    "    3. What are the average monthly sales prices of all goods sold? \n",
+    "    4. In each state province what is the average customer credit limit?   \n",
+    "    5. What are the yearly expenditures with each supplier (per supplier name)?  \n",
+    "    \n",
+    "    \n",
+    "    \n",
+    "4. **Partnerships needs to know:**\n",
+    "    1. What is the most common payment type?  \n",
+    "    2. What percentage of people have their `Title` as `Team Member`?\n",
+    "    3. Which supplier of the category `Novelty Goods Supplier` has the most transactions?  \n",
+    "    4. What is the highest `CommissionRate` that a person has?\n",
+    "    \n",
+    "\n",
+    "\n",
+    "5. **The marketing team needs to know:**\n",
+    "    1. What is the name of the sales person with the largest sum of invoice values in 2013 (person whose customers paid the most money)?\n",
+    "    2. Who are the most common `PickedByPersonID` person names for orders done by customer `Adriana Pena`?\n",
+    "    3. How many people have in their name the string `Sara`?\n",
+    "    5. What are the top 10 most Common Names (Primary or Surnames) of people?\n",
+    "\n",
+    "Transform the mongo dump file provided with this notebook and model a database following mongodb's best practices. You should adjust the data model to best fit the use cases provided above. Think about collections, embedding, linking, indexing, and the patterns learned in class. Provide justifications for each decision you make. What, if any, are the trade-off's or disadvantages of your approach.\n",
+    "\n",
+    "Use MongoDB queries to answer the questions on your transformed database.\n",
+    "\n",
+    "### Deliverables\n",
+    "\n",
+    "1. Notebook with all DB creation operations and CRUD operations to create the data model. **Important** you should include in comments justification for your decisions on modelling the data.;\n",
+    "2. Second notebook with all required queries and answers for the questions, **Important** please indicate with comments the steps in the data model you took to optimise each query;\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Additional Information\n",
+    "\n",
+    "## Groups  \n",
+    "\n",
+    "Students should form groups of at least 4 and at most 5. <br>\n",
+    "\n",
+    "## Submission  Deadline\n",
+    "\n",
+    "The submission includes two notebooks with outputs (cells must be run). \n",
+    "Please make sure to indicate:\n",
+    "1. group number,\n",
+    "2. group members with student names and numbers,\n",
+    "3. the name of the database that you created. <br>\n",
+    "\n",
+    "Upload the notebook on moodle before **23:59 on June 22nd**\n",
+    "\n",
+    "## Evaluation   \n",
+    "\n",
+    "The second homework assignment counts 40% towards your final mark of the curricular unit. <br>\n",
+    "The assignment will be scored from 0 to 20. <br>\n",
+    "\n",
+    "Each group submission will be evaluated on three components:\n",
+    "1. correctness of results;\n",
+    "2. simplicity and performance characteristics of the solution;\n",
+    "3. justification of decisions.\n",
+    "\n",
+    "50% -  Database design  \n",
+    "50% -  Query results including performance\n",
+    "\n",
+    "Please note that all code delivered in this assignment will go through plagiarism automated checks. <br>\n",
+    "Groups with high similarity levels in their code will undergo investigation.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Import Pymongo\n",
+    "\n",
+    "from pymongo import MongoClient\n",
+    "from pprint import pprint"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "host=\"localhost\"\n",
+    "port=\"27017\"\n",
+    "user=\"User\"\n",
+    "password=\"password\"\n",
+    "protocol=\"mongodb\"\n",
+    "client = MongoClient(f\"{protocol}://{user}:{password}@{host}:{port}\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'mongodb://User:password@localhost:27017'"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "f\"{protocol}://{user}:{password}@{host}:{port}\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Load Database"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Database info: Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True), 'WideWorldImporters')\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "db = client.WideWorldImporters\n",
+    "print(f\"Database info: {db}\\n\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "The database contains 29 collections\n",
+      "First 5 collections: ['colors', 'paymentmethods', 'suppliertransactions', 'people', 'stockitemstransactions', 'Invoices_invoicelines', 'orders', 'cities', 'transactiontypes', 'countries', 'stockitemsstockgroups', 'customercategories', 'stockgroups', 'purchaseorders', 'suppliers', 'stateprovinces', 'stockitems', 'customers_cities_states', 'customertransactions', 'deliverymethods', 'invoices', 'invoicelines', 'orderlines', 'packagetypes', 'purchaseorderlines', 'customers', 'suppliertransactions_embed', 'suppliercategories', 'people_2']\n"
+     ]
+    }
+   ],
+   "source": [
+    "collection_list = db.list_collection_names()\n",
+    "print(f\"The database contains {len(collection_list)} collections\")\n",
+    "\n",
+    "print(f\"First 5 collections: {collection_list[0:30]}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. The web team needs to know:  \n",
+    "    A. Which state province do we have the most suppliers in?  \n",
+    "    B. How many people have three or more `OtherLanguage`? \n",
+    "    C. Top 10 most common `OtherLanguage` for people records. \n",
+    "    D. How many customer records are valid after `November 2015`? \n",
+    "    E. What percentage of people records don't have the UserPreferences field? "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 1  - a) Which state province do we have the most suppliers in?  "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Question 1 - Query comments:**\n",
+    "- On this query we have used the original stateprovinces collection without any embedding or modelling, since we noticed that once we embeeded the collection state provinces into cities, the query no longer output the correct answer. After analysis we concluded that this might be happening due to the fact that the supplierstransactions document we have only suppliers with transactions, and in the suppliers document we have suppliers without transactions, which lead to error in the output of this query. Thats the reason we havent used the embeeded documents described in the modelling phase.\n",
+    "\n",
+    "- On all the queries for the question block 1, we haven't performed optimization analysis, since all the queries had a very fast execution. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 59,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Total Suppliers': 3, '_id': 'California'}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Performing a left outer join in order to connect the \"StateProvinceID\" between the cities and stateprovinces collections\n",
+    "\n",
+    "query_1 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"cities\",\n",
+    "           \"localField\": \"StateProvinceID\",\n",
+    "           \"foreignField\": \"StateProvinceID\",\n",
+    "           \"as\": \"Cities_Info\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "# unwinding the Cities_Info\n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$unwind\": \"$Cities_Info\"\n",
+    "}\n",
+    "\n",
+    "# Doing a project in order to get the relevant fields\n",
+    "\n",
+    "query_3 = {\n",
+    "    \"$project\": {\n",
+    "        \"CityID\": \"$Cities_Info.CityID\",\n",
+    "        \"StateProvinceID\": \"$Cities_Info.StateProvinceID\",\n",
+    "        \"CountryID\": 1,\n",
+    "        \"LastEditedBy\": 1,\n",
+    "        \"LatestRecordedPopulation\": 1,\n",
+    "        \"SalesTerritory\": 1,\n",
+    "        \"StateProvinceCode\": 1,\n",
+    "        \"StateProvinceName\": 1,\n",
+    "        \"ValidFrom\": 1,\n",
+    "        \"ValidTo\": 1,\n",
+    "        \"_id\": 0\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "query_4 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"suppliers\",\n",
+    "           \"localField\": \"CityID\",\n",
+    "           \"foreignField\": \"PostalCityID\",\n",
+    "           \"as\": \"Supplier_Info\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "# Unwinding \"Suppler_Info\" in order to extract the relevant fields\n",
+    "\n",
+    "query_5 = {\n",
+    "    \"$unwind\": \"$Supplier_Info\"\n",
+    "}\n",
+    "\n",
+    "# Matching only the documents in which we have a \"SupplierID\"\n",
+    "\n",
+    "query_6 ={\n",
+    "    \"$match\": {\"Supplier_Info.SupplierID\":{\"$exists\" : 1}}\n",
+    "}\n",
+    "\n",
+    "# Perfoming a $project step in order to retrieve the relevant fields\n",
+    "\n",
+    "query_7 = {\n",
+    "    \"$project\": {\n",
+    "        \"SupplierID\": \"$Supplier_Info.SupplierID\",\n",
+    "        \"SupplierName\": \"$Supplier_Info.SupplierName\",\n",
+    "        \"CityID\": 1,\n",
+    "        \"CountryID\": 1,\n",
+    "        \"SalesTerritory\": 1,\n",
+    "        \"StateProvinceID\": 1,\n",
+    "        \"StateProvinceName\": 1\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Grouping by the \"StateProvinceName\" and summing the total number of suppliers\n",
+    "\n",
+    "query_8 = {\n",
+    "    \"$group\": {\n",
+    "        \"_id\": \"$StateProvinceName\",\n",
+    "        \"Total Suppliers\": {\"$sum\": 1}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Sorting in descending order\n",
+    "\n",
+    "query_9 = {\n",
+    "    \"$sort\": {\"Total Suppliers\":-1}\n",
+    "}\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 1\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3, query_4, query_5, query_6, query_7, query_8, query_9, limit]\n",
+    "\n",
+    "result = db.stateprovinces.aggregate(pipeline)\n",
+    "pprint(list(result))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 1 - b) How many people have three or more `OtherLanguage`?  "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "4\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Filtering (using $match) for documents in which field \"OtherLanguages\" is present and different from None\n",
+    "\n",
+    "query_1 = {\n",
+    "    \"$match\": {\"OtherLanguages\": {\"$exists\": 1, \"$ne\": None}}\n",
+    "}\n",
+    "\n",
+    "# Performing a $project step to get the relevant fields and to introduce new ones, such as \"NumberOtherLanguages\" which\n",
+    "# retrieves the size of the array\n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$project\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"FullName\": 1,\n",
+    "        \"OtherLanguages\": 1,\n",
+    "        \"NumberOtherLanguages\": {\"$size\": \"$OtherLanguages\"}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Filtering (using $match) for documents with \"NumberOtherLanguages\" higher or equal to 3\n",
+    "\n",
+    "query_3 ={\n",
+    "    \"$match\": {\"NumberOtherLanguages\": { '$gte' : 3}}\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3]\n",
+    "\n",
+    "result = db.people_2.aggregate(pipeline)\n",
+    "pprint(len((list(result))))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 1 - c) Top 10 most common `OtherLanguage` for people records. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 67,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Languages Count': 3, '_id': 'Finnish'},\n",
+      " {'Languages Count': 3, '_id': 'Dutch'},\n",
+      " {'Languages Count': 3, '_id': 'Greek'},\n",
+      " {'Languages Count': 2, '_id': 'Arabic'},\n",
+      " {'Languages Count': 2, '_id': 'Croatian'},\n",
+      " {'Languages Count': 2, '_id': 'Lithuanian'},\n",
+      " {'Languages Count': 2, '_id': 'Romanian'},\n",
+      " {'Languages Count': 2, '_id': 'Slovak'},\n",
+      " {'Languages Count': 2, '_id': 'Polish'},\n",
+      " {'Languages Count': 1, '_id': 'Turkish'}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Filtering (using $match) on the documents with an existing array of OtherLanguages with at least one Language present\n",
+    "query_1 = {\n",
+    "    \"$match\": {\"OtherLanguages.0\": { \"$exists\" : 1, \"$ne\": \"\"}}\n",
+    "}\n",
+    "\n",
+    "# Performing a project to get the relevant fields\n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$project\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"FullName\": 1,\n",
+    "        \"OtherLanguages\": 1\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Unwinding the 'OtherLanguages' field\n",
+    "\n",
+    "query_3 = {\n",
+    "    \"$unwind\": \"$OtherLanguages\"\n",
+    "}\n",
+    "\n",
+    "# Grouping by the \"OtherLanguages\" field  and counting the number of existing languages\n",
+    "\n",
+    "query_4 = {\n",
+    "    \"$group\": {\n",
+    "        \"_id\": \"$OtherLanguages\",\n",
+    "        \"Languages Count\": {\"$sum\": 1}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Sorting in descending order\n",
+    "\n",
+    "query_5 = {\n",
+    "    \"$sort\": {\"Languages Count\": -1}\n",
+    "}\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 10\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3, query_4, query_5, limit]\n",
+    "\n",
+    "result = db.people_2.aggregate(pipeline)\n",
+    "pprint(list(result))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 1 - d) How many customer records are valid after `November 2015`? "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "9"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Getting the documents with \"ValidFrom\" field after November 2015\n",
+    "\n",
+    "db.customers_cities_states.count_documents({\"Customer_Info.ValidFrom\" : {\"$gte\" : datetime.datetime(2015, 11, 1)}})"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 1 - e) What percentage of people records don't have the UserPreferences field? "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 51,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'percentage': 83.61836183618362}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Performing a group by in order to obtain the number of empty \"UserPreferences\" documents (929) and the documents\n",
+    "# that have this field present (182)\n",
+    "\n",
+    "query_1 = {\n",
+    "    \"$group\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"empty\": {\"$sum\": {\"$cond\": [{\"$eq\": [\"$UserPreferences\", None]}, 1, 0]}},\n",
+    "        \"present\": {\"$sum\": {\"$cond\": [{\"$eq\": [\"$UserPreferences\", None]}, 0, 1]}}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Doing a $project to calculate the percentage of \"empty\" documents in the \"people\"s collection\n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$project\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"percentage\": {\n",
+    "            \"$multiply\": [100, {\"$divide\": [\"$empty\", {\"$sum\": [\"$empty\", \"$present\"]}]}]\n",
+    "        }\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2]\n",
+    "\n",
+    "result = db.people_2.aggregate(pipeline)\n",
+    "pprint(list(result))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. The warehouse group needs to know:  \n",
+    "    A. What is the average difference in days between OrderDate and ExpectedDeliveryDate for orders sold by (`SalespersonPersonID`) person with the name `Jack Potter`?\n",
+    "    B. Which items get ordered the most in bulk (largest average quantity ordered)?  \n",
+    "    C. Which two items get ordered together the most?\n",
+    "    D. For each customer category which 3 items have the ordered the most?\n",
+    "    E. What is the current stock of each stockgroup?"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 2 - a) What is the average difference in days between OrderDate and ExpectedDeliveryDate for orders sold by (SalespersonPersonID) person with the name Jack Potter"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Query optimization Comments: \n",
+    "\n",
+    "-**Step1**\n",
+    "- At the moment of the current query execution existed 3 indexes: _id_ , SalespersonPersonID and CustomerID\n",
+    "- Using the timeit, the query took on average 1.54 s ± 9.73 ms to execute.\n",
+    "- By executing the explain method, it was noticed that the winning plan was 'collscan' - which indicated that the query despite having 3 indexes, it searched the collection doc by doc. \n",
+    "\n",
+    "-**Step2**\n",
+    "- Since during the query we perform a $match step, using a step. It was created a text index for the field used for the query ('SalespersonPersonID.FullName') which was named 'text_id'\n",
+    "- Using timeit, the average time 1.55 s ± 17.3 ms, what is sligthly slower, suggesting a possible conflict of indexes. \n",
+    "- It was not possible to execute the explain method, due to code error (unable to solve)\n",
+    "\n",
+    "-**Step3**\n",
+    "- Then we decided to remove all indexes except '_id' and 'text_id', and the average query time was 1.55 s ± 5.93. Denotes a slightly improvemente compared with the step before, but event so, its not significantly different\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 115,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "SalespersonPersonID\n",
+      "CustomerID\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.orders.list_indexes():\n",
+    "    print(index['name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 116,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "1.54 s ± 9.73 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "\n",
+    "# Store the salesperson name as an object\n",
+    "\n",
+    "salesperson_name = 'Jack Potter'\n",
+    "\n",
+    "# Using Lookup, we joined the PersonID from the collection people (that contained the fullName = 'Jack Potter') into the SalespersonPersonID from the collection order\n",
+    "# using as key the 'PersonID' and 'SalespersonPersonID'\n",
+    "query_1 = {\n",
+    "            \"$lookup\":{\n",
+    "                \"from\": \"people_2\",\n",
+    "                \"localField\": \"SalespersonPersonID\" ,\n",
+    "                \"foreignField\": \"PersonID\",\n",
+    "                \"as\": \"SalespersonPersonID\"\n",
+    "            }\n",
+    "}\n",
+    "\n",
+    "# After the Join, we performed a match, selecting the orders sold by the SalespersonPersonID with name 'Jack Potter'\n",
+    "\n",
+    "query_2 = {\n",
+    "       '$match': {\n",
+    "            'SalespersonPersonID.FullName':salesperson_name\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# Using the project aggregation step, we extracted the number of days between the ExpectedDeliveryDate and OrderDate.\n",
+    "# Since it retrieves as milliseconds, to convert it into days, we needed to perform the following multiplication: 24 x 60 x 60 x 1000\n",
+    "# 1 day -> 24hours -> 24x60 minutes -> 24 x 60 x 60 seconds -> 24 x 60 x 60 x 1000 milliseconds\n",
+    "\n",
+    "query_3 = {\n",
+    "       '$project': {\n",
+    "           'PersonID':1,\n",
+    "           'date_difference': { \n",
+    "               '$divide': [\n",
+    "                   {'$subtract':[\"$ExpectedDeliveryDate\", \"$OrderDate\"]}, \n",
+    "                   24* 60 * 60 * 1000\n",
+    "               ]\n",
+    "            }\n",
+    "       }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# As the end step, it was performed a group by and appling the average of difference days. Since there is only on 'PersonID', in the query it came as '_id': '{'Jack Potter': None}'\n",
+    "\n",
+    "query_4 = {\n",
+    "    '$group': {\n",
+    "        '_id':{'Jack Potter': '$SalespersonPersonID.FullName'},\n",
+    "        'Average Difference Days': {'$avg' : '$date_difference'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3, query_4]\n",
+    "\n",
+    "r = db.orders.aggregate(pipeline)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 117,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "{'command': {'$db': 'WideWorldImporters',\n",
+      "             '$readPreference': {'mode': 'primaryPreferred'},\n",
+      "             'aggregate': 'orders',\n",
+      "             'explain': True,\n",
+      "             'lsid': {'id': UUID('dedeb05e-9075-44b0-89ff-77e6f46a7d70')},\n",
+      "             'pipeline': [{'$lookup': {'as': 'invoice_extra',\n",
+      "                                       'foreignField': 'InvoiceID',\n",
+      "                                       'from': 'invoicelines',\n",
+      "                                       'localField': 'InvoiceID'}},\n",
+      "                          {'$unwind': '$invoice_extra'},\n",
+      "                          {'$merge': {'into': 'Invoices_invoicelines',\n",
+      "                                      'whenMatched': 'replace'}}]},\n",
+      " 'explainVersion': '1',\n",
+      " 'ok': 1.0,\n",
+      " 'serverInfo': {'gitVersion': 'b977129dc70eed766cbee7e412d901ee213acbda',\n",
+      "                'host': '73776e37bb7e',\n",
+      "                'port': 27017,\n",
+      "                'version': '5.0.7'},\n",
+      " 'serverParameters': {'internalDocumentSourceGroupMaxMemoryBytes': 104857600,\n",
+      "                      'internalDocumentSourceSetWindowFieldsMaxMemoryBytes': 104857600,\n",
+      "                      'internalLookupStageIntermediateDocumentMaxSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetBufferSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetMaxOutputDocSizeBytes': 104857600,\n",
+      "                      'internalQueryMaxAddToSetBytes': 104857600,\n",
+      "                      'internalQueryMaxBlockingSortMemoryUsageBytes': 104857600,\n",
+      "                      'internalQueryProhibitBlockingMergeOnMongoS': 0},\n",
+      " 'stages': [{'$cursor': {'queryPlanner': {'indexFilterSet': False,\n",
+      "                                          'maxIndexedAndSolutionsReached': False,\n",
+      "                                          'maxIndexedOrSolutionsReached': False,\n",
+      "                                          'maxScansToExplodeReached': False,\n",
+      "                                          'namespace': 'WideWorldImporters.orders',\n",
+      "                                          'parsedQuery': {},\n",
+      "                                          'planCacheKey': 'D542626C',\n",
+      "                                          'queryHash': '8B3D4AB8',\n",
+      "                                          'rejectedPlans': [],\n",
+      "                                          'winningPlan': {'direction': 'forward',\n",
+      "                                                          'stage': 'COLLSCAN'}}}},\n",
+      "            {'$lookup': {'as': 'invoice_extra',\n",
+      "                         'foreignField': 'InvoiceID',\n",
+      "                         'from': 'invoicelines',\n",
+      "                         'localField': 'InvoiceID',\n",
+      "                         'unwinding': {'preserveNullAndEmptyArrays': False}}},\n",
+      "            {'$merge': {'into': {'coll': 'Invoices_invoicelines',\n",
+      "                                 'db': 'WideWorldImporters'},\n",
+      "                        'on': '_id',\n",
+      "                        'whenMatched': 'replace',\n",
+      "                        'whenNotMatched': 'insert'}}]}\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Using explain on the previous pipeline\n",
+    "\n",
+    "explain_output = db.command('aggregate', 'orders', pipeline=pipeline, explain=True)\n",
+    "\n",
+    "pprint(explain_output)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### After text index"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 118,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'text_id'"
+      ]
+     },
+     "execution_count": 118,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from pymongo import TEXT\n",
+    "db.orders.create_index(\n",
+    "    [('SalespersonPersonID.FullName', TEXT)],\n",
+    "    default_language='english',\n",
+    "    name='text_id', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 119,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "SalespersonPersonID\n",
+      "CustomerID\n",
+      "text_id\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.orders.list_indexes():\n",
+    "    print(index['name'])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 120,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "1.55 s ± 17.3 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "\n",
+    "# Store the salesperson name as an object\n",
+    "salesperson_name = 'Jack Potter'\n",
+    "\n",
+    "# Using Lookup, we joined the PersonID from the collection people (that contained the fullName = 'Jack Potter') into the SalespersonPersonID from the collection order\n",
+    "# using as key the 'PersonID' and 'SalespersonPersonID'\n",
+    "query_1 = {\n",
+    "            \"$lookup\":{\n",
+    "                \"from\": \"people_2\",\n",
+    "                \"localField\": \"SalespersonPersonID\" ,\n",
+    "                \"foreignField\": \"PersonID\",\n",
+    "                \"as\": \"SalespersonPersonID\"\n",
+    "            }\n",
+    "}\n",
+    "\n",
+    "# After the Join, we performed a match, selecting the orders sold by the SalespersonPersonID with name 'Jack Potter'\n",
+    "\n",
+    "query_2 = {\n",
+    "       '$match': {\n",
+    "            'SalespersonPersonID.FullName':salesperson_name\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# Using the project aggregation step, we extracted the number of days between the ExpectedDeliveryDate and OrderDate.\n",
+    "# Since it retrieves as milliseconds, to convert it into days, we needed to perform the following multiplication: 24 x 60 x 60 x 1000\n",
+    "# 1 day -> 24hours -> 24x60 minutes -> 24 x 60 x 60 seconds -> 24 x 60 x 60 x 1000 milliseconds\n",
+    "\n",
+    "query_3 = {\n",
+    "       '$project': {\n",
+    "           'PersonID':1,\n",
+    "           'date_difference': { \n",
+    "               '$divide': [\n",
+    "                   {'$subtract':[\"$ExpectedDeliveryDate\", \"$OrderDate\"]}, \n",
+    "                   24* 60 * 60 * 1000\n",
+    "               ]\n",
+    "            }\n",
+    "       }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# As the end step, it was performed a group by and appling the average of difference days. Since there is only on 'PersonID', in the query it came as '_id': '{'Jack Potter': None}'\n",
+    "\n",
+    "query_4 = {\n",
+    "    '$group': {\n",
+    "        '_id':{'Jack Potter': '$SalespersonPersonID.FullName'},\n",
+    "        'Average Difference Days': {'$avg' : '$date_difference'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "agg_pipeline = [query_1, query_2, query_3, query_4]\n",
+    "\n",
+    "r = db.orders.aggregate(agg_pipeline)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Removing all other indexes (except _id and text_id)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 129,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "db.orders.drop_index('SalespersonPersonID')\n",
+    "db.orders.drop_index('CustomerID')\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 130,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "text_id\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.orders.list_indexes():\n",
+    "    print(index['name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 132,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "[{'Average Difference Days': 1.4490320833897388, '_id': {'Jack Potter': None}}]\n",
+      "1.55 s ± 5.93 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "\n",
+    "# Store the salesperson name as an object\n",
+    "\n",
+    "salesperson_name = 'Jack Potter'\n",
+    "\n",
+    "# Using Lookup, we joined the PersonID from the collection people (that contained the fullName = 'Jack Potter') into the SalespersonPersonID from the collection order\n",
+    "# using as key the 'PersonID' and 'SalespersonPersonID'\n",
+    "query_1 = {\n",
+    "            \"$lookup\":{\n",
+    "                \"from\": \"people_2\",\n",
+    "                \"localField\": \"SalespersonPersonID\" ,\n",
+    "                \"foreignField\": \"PersonID\",\n",
+    "                \"as\": \"SalespersonPersonID\"\n",
+    "            }\n",
+    "}\n",
+    "\n",
+    "# After the Join, we performed a match, selecting the orders sold by the SalespersonPersonID with name 'Jack Potter'\n",
+    "\n",
+    "query_2 = {\n",
+    "       '$match': {\n",
+    "            'SalespersonPersonID.FullName':salesperson_name\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# Using the project aggregation step, we extracted the number of days between the ExpectedDeliveryDate and OrderDate.\n",
+    "# Since it retrieves as milliseconds, to convert it into days, we needed to perform the following multiplication: 24 x 60 x 60 x 1000\n",
+    "# 1 day -> 24hours -> 24x60 minutes -> 24 x 60 x 60 seconds -> 24 x 60 x 60 x 1000 milliseconds\n",
+    "\n",
+    "query_3 = {\n",
+    "       '$project': {\n",
+    "           'PersonID':1,\n",
+    "           'date_difference': { \n",
+    "               '$divide': [\n",
+    "                   {'$subtract':[\"$ExpectedDeliveryDate\", \"$OrderDate\"]}, \n",
+    "                   24* 60 * 60 * 1000\n",
+    "               ]\n",
+    "            }\n",
+    "       }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# As the end step, it was performed a group by and appling the average of difference days. Since there is only on 'PersonID', in the query it came as '_id': '{'Jack Potter': None}'\n",
+    "\n",
+    "query_4 = {\n",
+    "    '$group': {\n",
+    "        '_id':{'Jack Potter': '$SalespersonPersonID.FullName'},\n",
+    "        'Average Difference Days': {'$avg' : '$date_difference'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "agg_pipeline2 = [query_1, query_2, query_3, query_4]\n",
+    "\n",
+    "r = db.orders.aggregate(agg_pipeline2)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Question 2 - b) Which items get ordered the most in bulk (largest average quantity ordered)?"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Query optimization Comments: \n",
+    "\n",
+    "- Despite existed 2 different indexes '_id' and 'CustomerID', the last previous computed during the modelling phase, by using the explain method, we could noticed that the query needed to analyze doc by doc. Since there was not $match operation, we decided to not create a new index in this phase."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 107,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Average quantity ordered': 194.9142857142857,\n",
+      "  '_id': 'Black and orange fragile despatch tape 48mmx100m'},\n",
+      " {'Average quantity ordered': 192.6122448979592,\n",
+      "  '_id': 'Black and orange fragile despatch tape 48mmx75m'},\n",
+      " {'Average quantity ordered': 151.76470588235293,\n",
+      "  '_id': 'Chocolate echidnas 250g'},\n",
+      " {'Average quantity ordered': 148.59574468085106,\n",
+      "  '_id': 'Chocolate beetles 250g'},\n",
+      " {'Average quantity ordered': 147.50830564784053,\n",
+      "  '_id': 'Shipping carton (Brown) 356x356x279mm'},\n",
+      " {'Average quantity ordered': 145.20440251572327,\n",
+      "  '_id': '3 kg Courier post bag (White) 300x190x95mm'},\n",
+      " {'Average quantity ordered': 142.9171974522293,\n",
+      "  '_id': 'Clear packaging tape 48mmx75m'},\n",
+      " {'Average quantity ordered': 140.45741324921136,\n",
+      "  '_id': 'Shipping carton (Brown) 279x254x217mm'},\n",
+      " {'Average quantity ordered': 140.26479750778816,\n",
+      "  '_id': 'Shipping carton (Brown) 413x285x187mm'},\n",
+      " {'Average quantity ordered': 138.77245508982037,\n",
+      "  '_id': 'Express post box 5kg (White) 350x280x130mm'}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Using the document with the previous embeeded collection Invoices_invoicelines, that contained the description of the ordered items \n",
+    "# and the quantity ordered in each invoice\n",
+    "\n",
+    "# The first stage of the pipeline, was to group by the item description ('Description') and perform an average of the quantity \n",
+    "# for each item (parsed into thre accumulator operator)\n",
+    "\n",
+    "query_1 = {\n",
+    "    '$group': {\n",
+    "        '_id': '$invoice_extra.Description',\n",
+    "        'Average quantity ordered' : {'$avg':'$invoice_extra.Quantity'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# The second stage was to sort by  'Average quantity ordered' previously computed in desceding order\n",
+    "query_2 = {\n",
+    "    '$sort': {'Average quantity ordered':-1}\n",
+    "}\n",
+    "\n",
+    "# Retrieve only the 10 highest Average quantity ordered using the limit operator\n",
+    "limit= {\n",
+    "    \"$limit\": 10\n",
+    "} \n",
+    "\n",
+    "pipeline2 = [query_1, query_2, limit]\n",
+    "\n",
+    "r = db.Invoices_invoicelines.aggregate(pipeline2)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 136,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "CustomerID\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.Invoices_invoicelines.list_indexes():\n",
+    "    print(index['name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 109,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "{'command': {'$db': 'WideWorldImporters',\n",
+      "             '$readPreference': {'mode': 'primaryPreferred'},\n",
+      "             'aggregate': 'Invoices_invoicelines',\n",
+      "             'explain': True,\n",
+      "             'lsid': {'id': UUID('dedeb05e-9075-44b0-89ff-77e6f46a7d70')},\n",
+      "             'pipeline': [{'$group': {'Average quantity ordered': {'$avg': '$invoice_extra.Quantity'},\n",
+      "                                      '_id': '$invoice_extra.Description'}},\n",
+      "                          {'$sort': {'Average quantity ordered': -1}},\n",
+      "                          {'$limit': 10}]},\n",
+      " 'explainVersion': '1',\n",
+      " 'ok': 1.0,\n",
+      " 'serverInfo': {'gitVersion': 'b977129dc70eed766cbee7e412d901ee213acbda',\n",
+      "                'host': '73776e37bb7e',\n",
+      "                'port': 27017,\n",
+      "                'version': '5.0.7'},\n",
+      " 'serverParameters': {'internalDocumentSourceGroupMaxMemoryBytes': 104857600,\n",
+      "                      'internalDocumentSourceSetWindowFieldsMaxMemoryBytes': 104857600,\n",
+      "                      'internalLookupStageIntermediateDocumentMaxSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetBufferSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetMaxOutputDocSizeBytes': 104857600,\n",
+      "                      'internalQueryMaxAddToSetBytes': 104857600,\n",
+      "                      'internalQueryMaxBlockingSortMemoryUsageBytes': 104857600,\n",
+      "                      'internalQueryProhibitBlockingMergeOnMongoS': 0},\n",
+      " 'stages': [{'$cursor': {'queryPlanner': {'indexFilterSet': False,\n",
+      "                                          'maxIndexedAndSolutionsReached': False,\n",
+      "                                          'maxIndexedOrSolutionsReached': False,\n",
+      "                                          'maxScansToExplodeReached': False,\n",
+      "                                          'namespace': 'WideWorldImporters.Invoices_invoicelines',\n",
+      "                                          'parsedQuery': {},\n",
+      "                                          'planCacheKey': 'B0065318',\n",
+      "                                          'queryHash': '2A98CEE8',\n",
+      "                                          'rejectedPlans': [],\n",
+      "                                          'winningPlan': {'inputStage': {'direction': 'forward',\n",
+      "                                                                         'stage': 'COLLSCAN'},\n",
+      "                                                          'stage': 'PROJECTION_DEFAULT',\n",
+      "                                                          'transformBy': {'_id': 0,\n",
+      "                                                                          'invoice_extra.Description': 1,\n",
+      "                                                                          'invoice_extra.Quantity': 1}}}}},\n",
+      "            {'$group': {'Average quantity ordered': {'$avg': '$invoice_extra.Quantity'},\n",
+      "                        '_id': '$invoice_extra.Description'}},\n",
+      "            {'$sort': {'limit': 10,\n",
+      "                       'sortKey': {'Average quantity ordered': -1}}}]}\n"
+     ]
+    }
+   ],
+   "source": [
+    "explain_output = db.command('aggregate', 'Invoices_invoicelines', pipeline=pipeline2, explain=True)\n",
+    "pprint(explain_output)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Question 2 - c) Which two items get ordered together the most?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "{'_id': ObjectId('6287c5d0636e5a1269414699'),\n",
+       " 'OrderLineID': 1,\n",
+       " 'OrderID': 45,\n",
+       " 'StockItemID': 164,\n",
+       " 'Description': '32 mm Double sided bubble wrap 50m',\n",
+       " 'PackageTypeID': 7,\n",
+       " 'Quantity': 50,\n",
+       " 'UnitPrice': Decimal128('112.00'),\n",
+       " 'TaxRate': Decimal128('15.000'),\n",
+       " 'PickedQuantity': 50,\n",
+       " 'PickingCompletedWhen': datetime.datetime(2013, 1, 2, 11, 0),\n",
+       " 'LastEditedBy': 4,\n",
+       " 'LastEditedWhen': datetime.datetime(2013, 1, 2, 11, 0)}"
+      ]
+     },
+     "execution_count": 18,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "db.orderlines.find_one()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "db.orderlines.create_index(\n",
+    "    [('InvoiceID', 1)],\n",
+    "    name='InvoiceID', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Performing a self join on orderlines in order to get the different stock items for ech ID\n",
+    "\n",
+    "query_1 = {\n",
+    "        \"$lookup\": {\n",
+    "           \"from\": \"orderlines\",\n",
+    "           \"localField\": \"OrderID\",\n",
+    "           \"foreignField\": \"OrderID\",\n",
+    "           \"as\": \"order_Info\"\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Unwinding the \"order_info\" resulting from the previous join \n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$unwind\": \"$order_Info\"\n",
+    "}\n",
+    "\n",
+    "# Grouping by the different combinations of paired stock items and summing the number of times they occur\n",
+    "\n",
+    "query_3 = {\n",
+    "    '$group':\n",
+    "        {'_id' : {'StockItemID':'$StockItemID', \"StockItemID_2\": \"$order_Info.StockItemID\"},\n",
+    "         'Paired_Quantity': {'$sum': 1}\n",
+    "        }\n",
+    "}\n",
+    "\n",
+    "# Matching for non-null \"StockItemID\"\n",
+    "\n",
+    "query_4 = {\n",
+    "    \"$match\": {\"$expr\": { \"$ne\": [\"$_id.StockItemID\", \"$_id.StockItemID_2\"]}}\n",
+    "}\n",
+    "\n",
+    "# Sorting the total quantity in descending order\n",
+    "\n",
+    "query_5 = {\n",
+    "    \"$sort\": {\"Paired_Quantity\": -1}\n",
+    "}\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 1\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3, query_4, query_5, limit]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Paired_Quantity': 30, '_id': {'StockItemID': 35, 'StockItemID_2': 214}}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "pprint(list(db.orderlines.aggregate(pipeline)))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "5.8 s ± 121 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "paired_stock = db.orderlines.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'StockItemID'"
+      ]
+     },
+     "execution_count": 19,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Creating a new index for \"StockItemID\"\n",
+    "\n",
+    "db.orderlines.create_index(\n",
+    "    [('StockItemID', 1)],\n",
+    "    name='StockItemID', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "6.02 s ± 51.8 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "# The results weren't better so we decided to drop the \"StockItemID\" index\n",
+    "\n",
+    "%%timeit\n",
+    "paired_stock = db.orderlines.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "Order_Index\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.orderlines.list_indexes():\n",
+    "    print(index['name'])\n",
+    "    if index['name'] == 'StockItemID':\n",
+    "        db.orderlines.drop_index('StockItemID')\n",
+    "        print('Dropping account index')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Question 2 - d) For each customer category which 3 items have the ordered the most?"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Query optimization Comments: \n",
+    "\n",
+    "- Despite existed 3 different indexes '_id', 'PostalCityID' and 'CustomerID', the last two previous computed during the modelling phase, by using the explain method, we could noticed that the query needed to analyze doc by doc. Since there was not $match operation, we decided to not create a new index in this phase."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 139,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'customerCategory': 3, 'top_three': [184, 191, 192]},\n",
+      " {'customerCategory': 6, 'top_three': [80, 184, 188]},\n",
+      " {'customerCategory': 4, 'top_three': [189, 191, 188]},\n",
+      " {'customerCategory': 7, 'top_three': [184, 181, 179]},\n",
+      " {'customerCategory': 5, 'top_three': [184, 185, 201]}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# In order to compute the top 3 most order items for each CustomerCategory, it was needed to perform a relatively long query, taking as base the\n",
+    "# customers collection. \n",
+    "\n",
+    "\n",
+    "# First step - join the information from the invoices_invoicelines document into customer, using CustomerID as the shared field\n",
+    "\n",
+    "query_1 = {\n",
+    "            \"$lookup\":{\n",
+    "                \"from\": \"Invoices_invoicelines\",\n",
+    "                \"localField\": \"CustomerID\" ,\n",
+    "                \"foreignField\": \"CustomerID\",\n",
+    "                \"as\": \"CustomerID\"\n",
+    "            }\n",
+    "}\n",
+    "\n",
+    "# To better access the nested document inside the customer ID field, we performed an unwind (deconstructed the [] around the document inside CustomerID)\n",
+    "query_2 = {\n",
+    "    '$unwind':'$CustomerID'\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# We used project, to remove unecessary fields for the further queries steps\n",
+    "query_3 = {\n",
+    "    '$project': {\n",
+    "        '_id': 0,\n",
+    "        'CustomerCategoryID':1,\n",
+    "        'CustomerID.CustomerID':1,\n",
+    "        'CustomerID.invoice_extra.InvoiceID':1,\n",
+    "        'CustomerID.invoice_extra.StockItemID':1,\n",
+    "        'CustomerID.invoice_extra.Quantity':1\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "\n",
+    "# We performed a double groupby step by CustomerCategoryID and StockItem. We performed a sum as aggregation function\n",
+    "# on the quantity of each stockItem nested inside each invoiceID nested inside each CustomerID (one to many relationship).\n",
+    "# We named this last field as 'Items ordered'\n",
+    "\n",
+    "query_4 = {\n",
+    "    '$group': {\n",
+    "        '_id': {'customerCategory': '$CustomerCategoryID', 'StockItem':'$CustomerID.invoice_extra.StockItemID'},\n",
+    "        'Items ordered' : {'$sum':'$CustomerID.invoice_extra.Quantity'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# We performed a sort of the items ordered. We aimed at sort in descending way the stockitems with larger quantity\n",
+    "query_5 = {'$sort': {'Items ordered' : -1 }} \n",
+    "\n",
+    "# In order to aggregate the several stock items and their quantities to each customerCategory, we performed a groupby\n",
+    "# And as an aggregation function the $push which appends a specified value to an array.\n",
+    "\n",
+    "query_6 = {\n",
+    "    '$group': {\n",
+    "        '_id': '$_id.customerCategory', 'StockItem':{'$push': '$_id.StockItem'}}\n",
+    "}\n",
+    "\n",
+    "# We then proceed to slice the top 3 stock items with larger quantity for each customerCategory by performing a project step\n",
+    "# with a slice operator\n",
+    "query_7 = {\n",
+    "    '$project': {\n",
+    "          '_id':0,\n",
+    "          'customerCategory': '$_id',\n",
+    "          'top_three': { \n",
+    "              '$slice': ['$StockItem', 3] \n",
+    "          }\n",
+    "  }\n",
+    "}\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 50\n",
+    "}\n",
+    "\n",
+    "pipeline3 = [query_1, query_2,query_3,query_4,query_5,query_6,query_7,limit] \n",
+    "\n",
+    "r = db.customers.aggregate(pipeline3)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 138,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_id_\n",
+      "PostalCityID\n",
+      "CustomerID\n"
+     ]
+    }
+   ],
+   "source": [
+    "for index in db.customers.list_indexes():\n",
+    "    print(index['name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 140,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "{'command': {'$db': 'WideWorldImporters',\n",
+      "             '$readPreference': {'mode': 'primaryPreferred'},\n",
+      "             'aggregate': 'customers',\n",
+      "             'explain': True,\n",
+      "             'lsid': {'id': UUID('dedeb05e-9075-44b0-89ff-77e6f46a7d70')},\n",
+      "             'pipeline': [{'$lookup': {'as': 'CustomerID',\n",
+      "                                       'foreignField': 'CustomerID',\n",
+      "                                       'from': 'Invoices_invoicelines',\n",
+      "                                       'localField': 'CustomerID'}},\n",
+      "                          {'$unwind': '$CustomerID'},\n",
+      "                          {'$project': {'CustomerCategoryID': 1,\n",
+      "                                        'CustomerID.CustomerID': 1,\n",
+      "                                        'CustomerID.invoice_extra.InvoiceID': 1,\n",
+      "                                        'CustomerID.invoice_extra.Quantity': 1,\n",
+      "                                        'CustomerID.invoice_extra.StockItemID': 1,\n",
+      "                                        '_id': 0}},\n",
+      "                          {'$group': {'Items ordered': {'$sum': '$CustomerID.invoice_extra.Quantity'},\n",
+      "                                      '_id': {'StockItem': '$CustomerID.invoice_extra.StockItemID',\n",
+      "                                              'customerCategory': '$CustomerCategoryID'}}},\n",
+      "                          {'$sort': {'Items ordered': -1}},\n",
+      "                          {'$group': {'StockItem': {'$push': '$_id.StockItem'},\n",
+      "                                      '_id': '$_id.customerCategory'}},\n",
+      "                          {'$project': {'_id': 0,\n",
+      "                                        'customerCategory': '$_id',\n",
+      "                                        'top_three': {'$slice': ['$StockItem',\n",
+      "                                                                 3]}}},\n",
+      "                          {'$limit': 50}]},\n",
+      " 'explainVersion': '1',\n",
+      " 'ok': 1.0,\n",
+      " 'serverInfo': {'gitVersion': 'b977129dc70eed766cbee7e412d901ee213acbda',\n",
+      "                'host': '73776e37bb7e',\n",
+      "                'port': 27017,\n",
+      "                'version': '5.0.7'},\n",
+      " 'serverParameters': {'internalDocumentSourceGroupMaxMemoryBytes': 104857600,\n",
+      "                      'internalDocumentSourceSetWindowFieldsMaxMemoryBytes': 104857600,\n",
+      "                      'internalLookupStageIntermediateDocumentMaxSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetBufferSizeBytes': 104857600,\n",
+      "                      'internalQueryFacetMaxOutputDocSizeBytes': 104857600,\n",
+      "                      'internalQueryMaxAddToSetBytes': 104857600,\n",
+      "                      'internalQueryMaxBlockingSortMemoryUsageBytes': 104857600,\n",
+      "                      'internalQueryProhibitBlockingMergeOnMongoS': 0},\n",
+      " 'stages': [{'$cursor': {'queryPlanner': {'indexFilterSet': False,\n",
+      "                                          'maxIndexedAndSolutionsReached': False,\n",
+      "                                          'maxIndexedOrSolutionsReached': False,\n",
+      "                                          'maxScansToExplodeReached': False,\n",
+      "                                          'namespace': 'WideWorldImporters.customers',\n",
+      "                                          'parsedQuery': {},\n",
+      "                                          'planCacheKey': '0FDCD217',\n",
+      "                                          'queryHash': 'F29D5BB8',\n",
+      "                                          'rejectedPlans': [],\n",
+      "                                          'winningPlan': {'inputStage': {'direction': 'forward',\n",
+      "                                                                         'stage': 'COLLSCAN'},\n",
+      "                                                          'stage': 'PROJECTION_SIMPLE',\n",
+      "                                                          'transformBy': {'CustomerCategoryID': 1,\n",
+      "                                                                          'CustomerID': 1,\n",
+      "                                                                          '_id': 0}}}}},\n",
+      "            {'$lookup': {'as': 'CustomerID',\n",
+      "                         'foreignField': 'CustomerID',\n",
+      "                         'from': 'Invoices_invoicelines',\n",
+      "                         'localField': 'CustomerID',\n",
+      "                         'unwinding': {'preserveNullAndEmptyArrays': False}}},\n",
+      "            {'$project': {'CustomerCategoryID': True,\n",
+      "                          'CustomerID': {'CustomerID': True,\n",
+      "                                         'invoice_extra': {'InvoiceID': True,\n",
+      "                                                           'Quantity': True,\n",
+      "                                                           'StockItemID': True}},\n",
+      "                          '_id': False}},\n",
+      "            {'$group': {'Items ordered': {'$sum': '$CustomerID.invoice_extra.Quantity'},\n",
+      "                        '_id': {'StockItem': '$CustomerID.invoice_extra.StockItemID',\n",
+      "                                'customerCategory': '$CustomerCategoryID'}}},\n",
+      "            {'$sort': {'sortKey': {'Items ordered': -1}}},\n",
+      "            {'$group': {'StockItem': {'$push': '$_id.StockItem'},\n",
+      "                        '_id': '$_id.customerCategory'}},\n",
+      "            {'$project': {'_id': False,\n",
+      "                          'customerCategory': '$_id',\n",
+      "                          'top_three': {'$slice': ['$StockItem',\n",
+      "                                                   {'$const': 3}]}}},\n",
+      "            {'$limit': 50}]}\n"
+     ]
+    }
+   ],
+   "source": [
+    "explain_output = db.command('aggregate', 'customers', pipeline=pipeline3, explain=True)\n",
+    "pprint(explain_output)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Question 2 - e) What is the current stock of each stockgroup?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 143,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Current Stock': 91, 'Stock Group': 1},\n",
+      " {'Current Stock': 74, 'Stock Group': 2},\n",
+      " {'Current Stock': 42, 'Stock Group': 3},\n",
+      " {'Current Stock': 26, 'Stock Group': 4},\n",
+      " {'Current Stock': 83, 'Stock Group': 6},\n",
+      " {'Current Stock': 14, 'Stock Group': 7},\n",
+      " {'Current Stock': 24, 'Stock Group': 8},\n",
+      " {'Current Stock': 21, 'Stock Group': 9},\n",
+      " {'Current Stock': 67, 'Stock Group': 10}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# For this query we used the collection 'stockitemsstockgroups'.\n",
+    "# The articles in stock were interpreted as repeat StockItemsID in this collection, for each there was a corresponding StockGroupID\n",
+    "\n",
+    "# On the first pipeline's step, we performed a group by the StockGroupID, and sum each distinct stock group.\n",
+    "# At the same time we renamed this new field as 'Current Stock'\n",
+    "query_1 = {\n",
+    "    '$group': {\n",
+    "        '_id': '$StockGroupID', \n",
+    "        'Current Stock' : {'$sum':1}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# On the second step, we sorted by '_id' (which corresponded to a unique StockGroupID')\n",
+    "query_2 = {\n",
+    "    '$sort' : {'_id':1}\n",
+    "}\n",
+    "\n",
+    "# For a matter of cleaniness of the query, we perform a project step, for renaming the '_id' as Stock Group (more readable) and then removing the '_id' from the final result\n",
+    "# Maintaining at the same time the field 'Current Stock'\n",
+    "\n",
+    "query_3 = {\n",
+    "    '$project': {\n",
+    "        '_id':False,\n",
+    "        'Current Stock': True,\n",
+    "        'Stock Group':'$_id'\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "pipeline3 = [query_1,query_2,query_3]\n",
+    "\n",
+    "r = db.stockitemsstockgroups.aggregate(pipeline3)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "## 3. The CFO needs to know:\n",
+    "\n",
+    "    A. What is the monthly total order count for each month?\n",
+    "    B. How many orders are there from the customer Tailspin Toys (Head Office)?\n",
+    "    C. What are the average monthly sales prices of all goods sold?\n",
+    "    D. In each state province what is the average customer credit limit?\n",
+    "    E. What are the yearly expenditures with each supplier (per supplier name)?"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 3 - a) What is the monthly total order count for each month?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 69,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Performing a project to get the relevant fields\n",
+    "query_1 = {\n",
+    "    '$project': {'_id' : 0,  \n",
+    "        'Order ID' : '$OrderID',\n",
+    "        'Order Date' : '$OrderDate'}}\n",
+    "\n",
+    "# Grouping by the month by using the $month expression which retrieves the specific month from the date\n",
+    "# Summing all the orders to get the total order count\n",
+    "\n",
+    "query_2 = {\n",
+    "    '$group': {\n",
+    "        '_id': {'$month' : '$Order Date'}, \n",
+    "        'Total Order Count' : {'$sum' : 1} }}       \n",
+    "\n",
+    "query_3 = {\n",
+    "    '$project': {\n",
+    "        'month' : '$_id',\n",
+    "       'Total Order Count':1,\n",
+    "        '_id':0\n",
+    "    }}\n",
+    "\n",
+    "# Sorting by the month\n",
+    "\n",
+    "query_4 = {\n",
+    "    '$sort': {'month': 1}\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,query_2,query_3,query_4] \n",
+    "\n",
+    "result = list(db.orders.aggregate(pipeline))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 70,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Total Order Count': 7239, 'month': 1},\n",
+      " {'Total Order Count': 6115, 'month': 2},\n",
+      " {'Total Order Count': 7129, 'month': 3},\n",
+      " {'Total Order Count': 7497, 'month': 4},\n",
+      " {'Total Order Count': 7722, 'month': 5},\n",
+      " {'Total Order Count': 5551, 'month': 6},\n",
+      " {'Total Order Count': 6167, 'month': 7},\n",
+      " {'Total Order Count': 4908, 'month': 8},\n",
+      " {'Total Order Count': 5319, 'month': 9},\n",
+      " {'Total Order Count': 5504, 'month': 10},\n",
+      " {'Total Order Count': 5014, 'month': 11},\n",
+      " {'Total Order Count': 5430, 'month': 12}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "pprint(result)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 3 - b) What is the monthly total order count for each month?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 117,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Doing a left outer join between \"customers_cities_states\" and \"orders\"\n",
+    "query_1 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"orders\",\n",
+    "           \"localField\": \"Customer_Info.CustomerID\",\n",
+    "           \"foreignField\": \"CustomerID\",\n",
+    "           \"as\": \"customer_orders\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "# Unwinding \"customers_orders\"\n",
+    "query_2 = {\n",
+    "    \"$unwind\": \"$customer_orders\"\n",
+    "}\n",
+    "\n",
+    "# Use $perform to get the relevant fields\n",
+    "query_3 = {\n",
+    "    \"$project\": {\n",
+    "        \"CustomerID\": '$Customer_Info.CustomerID',\n",
+    "        \"CustomerName\": '$Customer_Info.CustomerName',\n",
+    "        \"OrderID\":\"$customer_orders.OrderID\"\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Matching by the id of Tailspin Toys (Head Office)\n",
+    "query_4 = {\n",
+    "    \"$match\": {\n",
+    "        \"CustomerID\": 1\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Performing a $count to get the total number of orders from this specific customer\n",
+    "query_5 = {\n",
+    "    '$count': 'Total Number of Orders from the customer \"Tailspin Toys (Head Office)\"'\n",
+    "}\n",
+    "\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 2\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,query_2,query_3,query_4,query_5, limit] "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 118,
+   "metadata": {
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "34.9 s ± 4.01 s per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Querying before applying indexes\n",
+    "\n",
+    "%%timeit\n",
+    "db.customers_cities_states.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 119,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'CustomerID'"
+      ]
+     },
+     "execution_count": 119,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# List of indexes\n",
+    "db.orders.create_index(\n",
+    "    [('CustomerID', 1)],\n",
+    "    name='CustomerID', \n",
+    ")\n",
+    "\n",
+    "db.customers_cities_states.create_index(\n",
+    "    [('CustomerID', 1)],\n",
+    "    name='CustomerID', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 120,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "403 ms ± 6.77 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "#Querying after applying indexes\n",
+    "\n",
+    "%%timeit\n",
+    "\n",
+    "#Before using the index the query took 34.9s for each loop and after using indexes the query took only 403ms.\n",
+    "# which its a significant difference, that confirms the importance of the indexing the query optimization.\n",
+    "\n",
+    "\n",
+    "db.customers_cities_states.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 121,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Total Number of Orders from the customer \"Tailspin Toys (Head Office)\"': 129}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Question 3 b - Final Answer\n",
+    "\n",
+    "\n",
+    "r = db.customers_cities_states.aggregate(pipeline)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 3 - c) What are the average monthly sales prices of all goods sold?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 128,
+   "metadata": {
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Avg_prices': 867.6920259382983, 'Month': 9},\n",
+      " {'Avg_prices': 904.314363901019, 'Month': 3},\n",
+      " {'Avg_prices': 907.7536941813261, 'Month': 2},\n",
+      " {'Avg_prices': 872.3030916414905, 'Month': 1},\n",
+      " {'Avg_prices': 863.5348798769941, 'Month': 12},\n",
+      " {'Avg_prices': 869.2220425531915, 'Month': 8},\n",
+      " {'Avg_prices': 860.1059444212286, 'Month': 11},\n",
+      " {'Avg_prices': 894.0999319079395, 'Month': 5},\n",
+      " {'Avg_prices': 851.8310937797223, 'Month': 10},\n",
+      " {'Avg_prices': 900.7108385460693, 'Month': 7},\n",
+      " {'Avg_prices': 884.5646212754108, 'Month': 4},\n",
+      " {'Avg_prices': 851.1255658242172, 'Month': 6}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Use $project to get a field with the month from the \"InvoiceDate\" by using the $month expression\n",
+    "# and the \"Prices\" from the \"ExtendedPrice\"\n",
+    "\n",
+    "query_1 = {\n",
+    "    \"$project\": {\n",
+    "        \"Month\": {'$month' : '$InvoiceDate'},\n",
+    "        \"Prices\":\"$invoice_extra.ExtendedPrice\"\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Sorting by the month\n",
+    "query_2 = {\n",
+    "    '$sort' : {'Month':-1}\n",
+    "}\n",
+    "\n",
+    "# Grouping by the specific month and then calculating the average price by using $avg\n",
+    "query_3 = {\n",
+    "    '$group': {\n",
+    "        '_id': '$Month', \n",
+    "         'Avg_prices' : {'$avg' : '$Prices'}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# performing a project to get the relevant fields: the Month from the \"_id\" and using the\n",
+    "# $toDouble to convert the average price from Decimal128 to a double datatype.\n",
+    "\n",
+    "query_4 = {\n",
+    "    \"$project\": {\n",
+    "        '_id':0,\n",
+    "        \"Month\": '$_id',\n",
+    "        \"Avg_prices\": {\"$toDouble\": \"$Avg_prices\"}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,query_2,query_3,query_4]\n",
+    "r =db.Invoices_invoicelines.aggregate(pipeline)\n",
+    "pprint(list(r))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 3 - d) In each state province what is the average customer credit limit?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 131,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Average Credit Limit': Decimal128('2950.00'), '_id': 'Arizona'},\n",
+      " {'Average Credit Limit': Decimal128('2758.928571428571428571428571428571'),\n",
+      "  '_id': 'New York'},\n",
+      " {'Average Credit Limit': Decimal128('2747.50'), '_id': 'South Dakota'},\n",
+      " {'Average Credit Limit': Decimal128('2255.833333333333333333333333333333'),\n",
+      "  '_id': 'Pennsylvania'},\n",
+      " {'Average Credit Limit': Decimal128('1985.00'), '_id': 'Alabama'},\n",
+      " {'Average Credit Limit': Decimal128('2372.041666666666666666666666666667'),\n",
+      "  '_id': 'Louisiana'},\n",
+      " {'Average Credit Limit': Decimal128('2481.666666666666666666666666666667'),\n",
+      "  '_id': 'Iowa'},\n",
+      " {'Average Credit Limit': Decimal128('1750.00'), '_id': 'Maryland'},\n",
+      " {'Average Credit Limit': Decimal128('2858.333333333333333333333333333333'),\n",
+      "  '_id': 'Alaska'},\n",
+      " {'Average Credit Limit': Decimal128('2520.00'), '_id': 'Washington'},\n",
+      " {'Average Credit Limit': Decimal128('2336.00'), '_id': 'Illinois'},\n",
+      " {'Average Credit Limit': Decimal128('2631.75'), '_id': 'Georgia'},\n",
+      " {'Average Credit Limit': Decimal128('3098.75'), '_id': 'Indiana'},\n",
+      " {'Average Credit Limit': Decimal128('2374.00'), '_id': 'Kentucky'},\n",
+      " {'Average Credit Limit': Decimal128('3365.00'), '_id': 'Wyoming'},\n",
+      " {'Average Credit Limit': Decimal128('2595.00'), '_id': 'Nebraska'},\n",
+      " {'Average Credit Limit': Decimal128('2766.666666666666666666666666666667'),\n",
+      "  '_id': 'Puerto Rico (US Territory)'},\n",
+      " {'Average Credit Limit': Decimal128('3600.00'), '_id': 'Nevada'},\n",
+      " {'Average Credit Limit': Decimal128('2800.00'), '_id': 'Florida'},\n",
+      " {'Average Credit Limit': Decimal128('2312.50'), '_id': 'Texas'},\n",
+      " {'Average Credit Limit': Decimal128('2806.00'), '_id': 'Oklahoma'},\n",
+      " {'Average Credit Limit': Decimal128('3044.166666666666666666666666666667'),\n",
+      "  '_id': 'Arkansas'},\n",
+      " {'Average Credit Limit': Decimal128('2700.00'), '_id': 'Idaho'},\n",
+      " {'Average Credit Limit': Decimal128('2915.00'), '_id': 'Virginia'},\n",
+      " {'Average Credit Limit': Decimal128('2507.50'), '_id': 'Massachusetts[E]'},\n",
+      " {'Average Credit Limit': Decimal128('2661.363636363636363636363636363636'),\n",
+      "  '_id': 'North Carolina'},\n",
+      " {'Average Credit Limit': Decimal128('2400.00'), '_id': 'Maine'},\n",
+      " {'Average Credit Limit': Decimal128('2613.333333333333333333333333333333'),\n",
+      "  '_id': 'Missouri'},\n",
+      " {'Average Credit Limit': Decimal128('3465.00'), '_id': 'Tennessee'},\n",
+      " {'Average Credit Limit': Decimal128('2787.307692307692307692307692307692'),\n",
+      "  '_id': 'California'},\n",
+      " {'Average Credit Limit': Decimal128('2800.00'), '_id': 'New Hampshire'},\n",
+      " {'Average Credit Limit': Decimal128('2000.00'), '_id': 'Vermont'},\n",
+      " {'Average Credit Limit': Decimal128('2942.857142857142857142857142857143'),\n",
+      "  '_id': 'Ohio'},\n",
+      " {'Average Credit Limit': Decimal128('2033.333333333333333333333333333333'),\n",
+      "  '_id': 'Colorado'},\n",
+      " {'Average Credit Limit': Decimal128('2567.857142857142857142857142857143'),\n",
+      "  '_id': 'West Virginia'},\n",
+      " {'Average Credit Limit': Decimal128('2479.166666666666666666666666666667'),\n",
+      "  '_id': 'South Carolina'},\n",
+      " {'Average Credit Limit': Decimal128('2133.333333333333333333333333333333'),\n",
+      "  '_id': 'Wisconsin'},\n",
+      " {'Average Credit Limit': Decimal128('1666.666666666666666666666666666667'),\n",
+      "  '_id': 'Montana'},\n",
+      " {'Average Credit Limit': Decimal128('2900.00'), '_id': 'Kansas'},\n",
+      " {'Average Credit Limit': Decimal128('2500.00'), '_id': 'North Dakota'},\n",
+      " {'Average Credit Limit': Decimal128('2641.428571428571428571428571428571'),\n",
+      "  '_id': 'New Jersey'},\n",
+      " {'Average Credit Limit': Decimal128('2513.125'), '_id': 'Minnesota'},\n",
+      " {'Average Credit Limit': Decimal128('3500.00'), '_id': 'Connecticut'},\n",
+      " {'Average Credit Limit': Decimal128('2400.00'), '_id': 'Mississippi'},\n",
+      " {'Average Credit Limit': Decimal128('2773.333333333333333333333333333333'),\n",
+      "  '_id': 'Michigan'},\n",
+      " {'Average Credit Limit': Decimal128('2741.00'), '_id': 'New Mexico'},\n",
+      " {'Average Credit Limit': Decimal128('3530.00'), '_id': 'Oregon'},\n",
+      " {'Average Credit Limit': Decimal128('3200.00'), '_id': 'Utah'}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Filter using ($Match) for retrieving Credit Limits values that are not \"None\"\n",
+    "\n",
+    "query_1 = {\n",
+    "    \"$match\": {\"Customer_Info.CreditLimit\": { \"$ne\": None}}\n",
+    "}\n",
+    "\n",
+    "# Performing a project to get the relevant fields\n",
+    "query_2 = {\n",
+    "    \"$project\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"CityID\": 1,\n",
+    "        \"CityName\": 1,\n",
+    "        \"CustomerID\": \"$Customer_Info.CustomerID\",\n",
+    "        \"CustomerName\": \"$Customer_Info.CustomerName\",\n",
+    "        \"CreditLimit\": \"$Customer_Info.CreditLimit\",\n",
+    "        \"StateProvinceID\": 1,\n",
+    "        \"StateProvinceName\": \"$state_provinces_Info.StateProvinceName\"\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Grouping by each State Province ('StateProvinceName') and getting the average Credit limit\n",
+    "query_3 = {\n",
+    "    \"$group\": {\n",
+    "        \"_id\": \"$StateProvinceName\",\n",
+    "        \"Average Credit Limit\": {\"$avg\": \"$CreditLimit\"}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1, query_2, query_3]\n",
+    "\n",
+    "result = db.customers_cities_states.aggregate(pipeline)\n",
+    "pprint(list(result))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 3 - e) What are the yearly expenditures with each supplier (per supplier name)?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 126,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Extractions Total': Decimal128('0.00'),\n",
+      "  '_id': {'SupplierName': 'The Phone Company', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('1353734.69'),\n",
+      "  '_id': {'SupplierName': 'Litware, Inc.', 'year': 2015}},\n",
+      " {'Extractions Total': Decimal128('0.00'),\n",
+      "  '_id': {'SupplierName': 'Northwind Electric Cars', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('1510955.10'),\n",
+      "  '_id': {'SupplierName': 'Fabrikam, Inc.', 'year': 2014}},\n",
+      " {'Extractions Total': Decimal128('119343.32'),\n",
+      "  '_id': {'SupplierName': 'Litware, Inc.', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('686937.21'),\n",
+      "  '_id': {'SupplierName': 'Litware, Inc.', 'year': 2014}},\n",
+      " {'Extractions Total': Decimal128('-2160015.22'),\n",
+      "  '_id': {'SupplierName': 'Litware, Inc.', 'year': 2016}},\n",
+      " {'Extractions Total': Decimal128('0.00'),\n",
+      "  '_id': {'SupplierName': 'Graphic Design Institute', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('0.00'),\n",
+      "  '_id': {'SupplierName': 'Contoso, Ltd.', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('485380.50'),\n",
+      "  '_id': {'SupplierName': 'Fabrikam, Inc.', 'year': 2013}},\n",
+      " {'Extractions Total': Decimal128('2837528.40'),\n",
+      "  '_id': {'SupplierName': 'Fabrikam, Inc.', 'year': 2015}},\n",
+      " {'Extractions Total': Decimal128('-4833864.00'),\n",
+      "  '_id': {'SupplierName': 'Fabrikam, Inc.', 'year': 2016}},\n",
+      " {'Extractions Total': Decimal128('0.00'),\n",
+      "  '_id': {'SupplierName': 'A Datum Corporation', 'year': 2016}}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Performing a $project step to get the relevant fields and to retrieve the specific year from the \"TransactionDate\" using the $year expression\n",
+    "query_1 = {\n",
+    "    \"$project\": {\n",
+    "        \"_id\": 0,\n",
+    "        \"SupplierID\": 1,\n",
+    "        \"SupplierName\": '$suppliers.SupplierName',\n",
+    "        \"IsFinalized\": \"$IsFinalized\",\n",
+    "        \"FinalizationDate\": \"$FinalizationDate\",\n",
+    "        \"SupplierTransactionID\": \"$SupplierTransactionID\",\n",
+    "        \"TransactionAmount\": \"$TransactionAmount\",\n",
+    "        \"TransactionDate\": \"$TransactionDate\",\n",
+    "        \"FinalizationDate\": \"$FinalizationDate\",\n",
+    "        \"year\": { \"$year\": \"$TransactionDate\" } \n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Filter using ($Match) for finalized transactions (True)\n",
+    "query_2 = {\n",
+    "    \"$match\": {\"IsFinalized\": { \"$eq\": True}}\n",
+    "}\n",
+    "\n",
+    "# Grouping by the supplier and the respective year, and then performing a $sum of the total amount\n",
+    "# from the transactions\n",
+    "query_3 = {\n",
+    "    \"$group\": {\n",
+    "        \"_id\":{\n",
+    "            \"SupplierName\": \"$SupplierName\",\n",
+    "            \"year\": \"$year\"\n",
+    "        },\n",
+    "        \"Extractions Total\": {\"$sum\": \"$TransactionAmount\"}\n",
+    "    }\n",
+    "}\n",
+    "pipeline = [query_1, query_2, query_3]\n",
+    "\n",
+    "result = db.suppliertransactions_embed.aggregate(pipeline)\n",
+    "pprint(list(result))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "## 4. Partnerships needs to know:  \n",
+    "    A. What is the most common payment type?\n",
+    "    B. What percentage of people have their `Title` as `Team Member`?\n",
+    "    C. Which supplier of the category `Novelty Goods Supplier` has the most transactions?  \n",
+    "    D. What is the highest `CommissionRate` that a person has?"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 4 - a) What is the most common payment type?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 119,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "The most common payment type is ['EFT']\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Since we are using the 'suppliertransactions' embedding previously performed, we just need to group by the payment method and count the value.\n",
+    "\n",
+    "query_1 = {\n",
+    "    '$group':{\n",
+    "        '_id':'$paymentMethod.PaymentMethodName',\n",
+    "        'Number of transactions': {'$sum':1}\n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "limit = {'$limit':1}\n",
+    "\n",
+    "pipeline = [query_1]\n",
+    "\n",
+    "n_transac = db.suppliertransactions_embed.aggregate(pipeline)\n",
+    "\n",
+    "Total_people =list(n_transac)\n",
+    "\n",
+    "print('The most common payment type is ' + str(Total_people[0]['_id']))\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 4 - b) What percentage of people have their `Title` as `Team Member`??      "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 120,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "The percentage of people that have their Title as Team Member is 1.17%\n"
+     ]
+    }
+   ],
+   "source": [
+    "# The intuiton on this query was to filter the people that have their title as Team Member\n",
+    "# We transformed previously Customefield from string to dictionary (modelling notebook for more informations) in order to be able to perform this query.\n",
+    "query_1 ={\n",
+    "    '$match':{'CustomFields.Title': 'Team Member'}\n",
+    "}\n",
+    "\n",
+    "# Query for counting\n",
+    "query_3 ={\n",
+    "    '$count':'Number of people'\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,query_3]\n",
+    "\n",
+    "# Counting the number of people that have their title as team member\n",
+    "n_TM = db.people_2.aggregate(pipeline)\n",
+    "number_TM =list(n_TM)[0]['Number of people']\n",
+    "\n",
+    "# Counting the whole people collection\n",
+    "pipeline_total = [query_3]\n",
+    "n_total = db.people_2.aggregate(pipeline_total)\n",
+    "Total_people=list(n_total)[0]['Number of people']\n",
+    "\n",
+    "# Printing the result and making the calculation\n",
+    "print('The percentage of people that have their Title as Team Member is ' + str(round((number_TM/Total_people)*100,2 ))+'%')\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 4 - c) Which supplier of the category `Novelty Goods Supplier` has the most transactions? "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Filtering the the 'suppliercategoryname' that is asked ('Novelty Goods Supplier)\n",
+    "query_1 = {\n",
+    "    '$match': {'suppliercategories.SupplierCategoryName':'Novelty Goods Supplier'}\n",
+    "}\n",
+    "\n",
+    "# Grouping the collection by the supplier name and counting\n",
+    "query_2 = {\n",
+    "    '$group': {\n",
+    "        '_id': '$suppliers.SupplierName', 'Number_transaction': {'$sum' : 1}            \n",
+    "    }\n",
+    "}\n",
+    "\n",
+    "# Performing a sort in descending order\n",
+    "query_3 = {\n",
+    "    '$sort' : {'Number_transaction':-1}\n",
+    "}\n",
+    "\n",
+    "\n",
+    "limit = {'$limit':1}\n",
+    "\n",
+    "pipeline = [query_1,query_2,query_3,limit]\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "7.48 ms ± 576 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Without Index\n",
+    "\n",
+    "%%timeit\n",
+    "supplier_name = db.suppliertransactions_embed.aggregate(pipeline)\n",
+    "Sup_name =list(supplier_name)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'symbol_id'"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from pymongo import TEXT\n",
+    "db.suppliertransactions_embed.create_index(\n",
+    "    [('suppliercategories.SupplierCategoryName', TEXT)],\n",
+    "    default_language='english',\n",
+    "    name='symbol_id', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "6.3 ms ± 611 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "# After appling the index\n",
+    "\n",
+    "%%timeit \n",
+    "supplier_name = db.suppliertransactions_embed.aggregate(pipeline)\n",
+    "Sup_name =list(supplier_name)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "The supplier of the category Novelty Goods Supplier that has the most transactions is Graphic Design Institute\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Using the text index in the variable suppliercategories.SupplierCategoryName we got a little improvement in our query time\n",
+    "\n",
+    "supplier_name = db.suppliertransactions_embed.aggregate(pipeline)\n",
+    "Sup_name =list(supplier_name)\n",
+    "\n",
+    "print('The supplier of the category Novelty Goods Supplier that has the most transactions is ' + str(Sup_name[0]['_id']))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### Question 4 - d) What is the highest `CommissionRate` that a person has?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 106,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'CommissionRate': 4.55,\n",
+      "  'FullName': 'Sophia Hinton',\n",
+      "  '_id': ObjectId('6287c4dc636e5a12693da1d4')}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Filtering the collection with the people that only has some value (other than None) in the field CommissionRate\n",
+    "query_1 ={\n",
+    "    '$match': {\"CustomFields.CommissionRate\":{'$ne' :None}}\n",
+    "}\n",
+    "\n",
+    "# The value is recorded as a string and we need to convert it to double type.\n",
+    "query_2 ={\n",
+    "    '$project': {'FullName':1,\n",
+    "                 'CommissionRate': {\"$toDouble\": \"$CustomFields.CommissionRate\"}}\n",
+    "}\n",
+    "\n",
+    "# Using sorting to grab the highest commissionRate\n",
+    "query_3 ={\n",
+    "    '$sort': {'CommissionRate':-1}\n",
+    "}\n",
+    "\n",
+    "\n",
+    "limit = {'$limit':1}\n",
+    "pipeline = [query_1,query_2,query_3,limit]\n",
+    "r = db.people_2.aggregate(pipeline)\n",
+    "pprint(list(r))\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 5. The marketing team needs to know:  \n",
+    "    A. What is the name of the sales person with the largest sum of invoice values in 2013 (person whose customers paid the most money)?\n",
+    "    B. Who are the most common `PickedByPersonID` person names for orders done by customer `Adriana Pena`?\n",
+    "    C. How many people have in their name the string `Sara`?\n",
+    "    D. What are the top 10 most Common Names (Primary or Surnames) of people?\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### Question 5 - a)  What is the name of the sales person with the largest sum of invoice values in 2013 (person whose customers paid the most money)?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2022-06-18T19:20:25.512410Z",
+     "start_time": "2022-06-18T18:58:04.955102Z"
+    },
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "# Since in the Invoices_invoicelines document we don't have all the needed information embedded, we still had to perform more joins (embedding)\n",
+    "\n",
+    "# First with the customertransactions\n",
+    "query_1 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"customertransactions\",\n",
+    "           \"localField\": \"InvoiceID\",\n",
+    "           \"foreignField\": \"InvoiceID\",\n",
+    "           \"as\": \"joinned_field\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "# Filtering the collection with the date required\n",
+    "query_2 = {'$match':\n",
+    "           {'InvoiceDate':  {\"$gte\": datetime(2013,1,1), \"$lte\": datetime(2013,12,31)}  }\n",
+    "                    }\n",
+    "# Then we performed a second join with people_2 document\n",
+    "query_11 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"people_2\",\n",
+    "           \"localField\": \"SalespersonPersonID\",\n",
+    "           \"foreignField\": \"PersonID\",\n",
+    "           \"as\": \"SalespersonPersonID_1\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "# Unwinding the both joins \n",
+    "query_3 = {\n",
+    "    \"$unwind\": \"$joinned_field\"\n",
+    "}\n",
+    "\n",
+    "query_33 = {\n",
+    "    \"$unwind\": \"$SalespersonPersonID_1\"\n",
+    "}\n",
+    "\n",
+    "# Finally we perform a  group by with the sum to obtain the final result\n",
+    "query_4 = {\n",
+    "    '$group':\n",
+    "        {'_id' : '$SalespersonPersonID_1.FullName', # will be groupped by this field\n",
+    "         'Sum' : {'$sum' : '$joinned_field.TransactionAmount'}}} # type of accumulator\n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 10\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,\n",
+    "            query_2,\n",
+    "            query_11,\n",
+    "            query_3,\n",
+    "            query_33,\n",
+    "            query_4,\n",
+    "            limit\n",
+    "           ]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 90,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'PersonID'"
+      ]
+     },
+     "execution_count": 90,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# List of indexes created\n",
+    "\n",
+    "\n",
+    "db.Invoices_invoicelines.create_index(\n",
+    "    [('InvoiceID', 1)],\n",
+    "    name='InvoiceID', \n",
+    ")\n",
+    "\n",
+    "db.Invoices_invoicelines.create_index(\n",
+    "    [('SalespersonPersonID', 1)],\n",
+    "    name='SalespersonPersonID', \n",
+    ")\n",
+    "\n",
+    "db.Invoices_invoicelines.create_index(\n",
+    "    [('InvoiceDate', 1)],\n",
+    "    partialFilterExpression = {\"InvoiceDate\": {\"$lte\": datetime(2013,12,31)}},\n",
+    "    name='InvoiceDate', \n",
+    ")\n",
+    "\n",
+    "db.customertransactions.create_index(\n",
+    "    [('InvoiceID', 1)],\n",
+    "    name='InvoiceID', \n",
+    ")\n",
+    "\n",
+    "db.people_2.create_index(\n",
+    "    [('PersonID', 1)],\n",
+    "    name='PersonID', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 91,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "79.3 ms ± 1.13 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "\n",
+    "# When the query was perform without the indexes the timeit will run for more than one hour. \n",
+    "# However when we applied the indexes the query only took 79.3ms for each run\n",
+    "\n",
+    "q5_1 = db.Invoices_invoicelines.aggregate(pipeline)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Sum': Decimal128('5377225.67'), '_id': 'Kayla Woodcock'},\n",
+      " {'Sum': Decimal128('5127633.47'), '_id': 'Taj Shand'},\n",
+      " {'Sum': Decimal128('4997102.62'), '_id': 'Lily Code'},\n",
+      " {'Sum': Decimal128('5255986.40'), '_id': 'Amy Trefl'},\n",
+      " {'Sum': Decimal128('5319071.74'), '_id': 'Jack Potter'},\n",
+      " {'Sum': Decimal128('5593922.31'), '_id': 'Hudson Onslow'},\n",
+      " {'Sum': Decimal128('5231364.62'), '_id': 'Anthony Grosse'},\n",
+      " {'Sum': Decimal128('4977985.24'), '_id': 'Hudson Hollinworth'},\n",
+      " {'Sum': Decimal128('5299929.15'), '_id': 'Sophia Hinton'},\n",
+      " {'Sum': Decimal128('5383051.42'), '_id': 'Archer Lamble'}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Answer to Question 5.a)\n",
+    "\n",
+    "q5_1 = db.Invoices_invoicelines.aggregate(pipeline)\n",
+    "pprint(list(q5_1))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question - 5 b) Who are the most common `PickedByPersonID` person names for orders done by customer `Adriana Pena`?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 74,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2022-06-19T15:07:29.400449Z",
+     "start_time": "2022-06-19T15:07:29.238250Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "## Using lookup to join with the 'orders' document\n",
+    "\n",
+    "query_1 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"orders\",\n",
+    "           \"localField\": \"Customer_Info.CustomerID\",\n",
+    "           \"foreignField\": \"CustomerID\",\n",
+    "           \"as\": \"CustomerID_1\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "## Unwinding the field\n",
+    "\n",
+    "query_2 = {\n",
+    "    \"$unwind\": \"$CustomerID_1\"\n",
+    "}\n",
+    "\n",
+    "# Perform a second join (embeeding)\n",
+    "query_3 = {\n",
+    "        \"$lookup\":{\n",
+    "           \"from\": \"people_2\",\n",
+    "           \"localField\": \"CustomerID_1.PickedByPersonID\",\n",
+    "           \"foreignField\": \"PersonID\",\n",
+    "           \"as\": \"PickedByPersonID_1\"\n",
+    "        }\n",
+    "    }\n",
+    "\n",
+    "\n",
+    "##  Filtering Adriana Pena in CustomerName \n",
+    "query_4 = {'$match': {'Customer_Info.CustomerName': 'Adriana Pena'}}\n",
+    "\n",
+    "  \n",
+    "# Perform a group by using the 'FullName' from the previous embeeded document \n",
+    "query_5  = {\n",
+    "    '$group':\n",
+    "        {'_id' :  '$PickedByPersonID_1.FullName'   ,  \n",
+    "         'conta' : {'$sum' : 1}}}  \n",
+    "\n",
+    "\n",
+    "query_6  = {\n",
+    "    '$sort': {\n",
+    "        'conta': -1\n",
+    "    }\n",
+    "} \n",
+    "\n",
+    "limit = {\n",
+    "    \"$limit\": 10\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,  \n",
+    "            query_2, \n",
+    "            query_3,   \n",
+    "            query_4,\n",
+    "            query_5,\n",
+    "            query_6,\n",
+    "            limit\n",
+    "           ]\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 73,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "85.5 ms ± 20.6 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "q5_2 = db.customers_cities_states.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'CustomerName'"
+      ]
+     },
+     "execution_count": 80,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# List of indexes\n",
+    "\n",
+    "db.customers_cities_states.create_index(\n",
+    "    [('Customer_Info.CustomerID', 1)],\n",
+    "    name='CustomerID', \n",
+    ")\n",
+    "\n",
+    "\n",
+    "db.orders.create_index(\n",
+    "    [('CustomerID', 1)],\n",
+    "    name='CustomerID', \n",
+    ")\n",
+    "\n",
+    "\n",
+    "db.customers_cities_states.create_index(\n",
+    "    [('Customer_Info.CustomerName', TEXT)],\n",
+    "    default_language='english',\n",
+    "    name='CustomerName', \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 81,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "11.4 ms ± 4.53 ms per loop (mean ± std. dev. of 7 runs, 100 loops each)\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%timeit\n",
+    "#Using the indexes we can see that the processing is much faster, since without index is taking 85.5ms per loop and after\n",
+    "#the indexes the time was only 11.4ms\n",
+    "\n",
+    "q5_2 = db.customers_cities_states.aggregate(pipeline)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 82,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'_id': [], 'conta': 10},\n",
+      " {'_id': ['Anthony Grosse'], 'conta': 3},\n",
+      " {'_id': ['Katie Darwin'], 'conta': 3},\n",
+      " {'_id': ['Piper Koch'], 'conta': 3},\n",
+      " {'_id': ['Henry Forlonge'], 'conta': 2},\n",
+      " {'_id': ['Isabella Rupp'], 'conta': 2},\n",
+      " {'_id': ['Amy Trefl'], 'conta': 1},\n",
+      " {'_id': ['Alica Fatnowna'], 'conta': 1},\n",
+      " {'_id': ['Taj Shand'], 'conta': 1},\n",
+      " {'_id': ['Ethan Onslow'], 'conta': 1}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Question 5b final answer\n",
+    "\n",
+    "q5_2 = db.customers_cities_states.aggregate(pipeline)\n",
+    "pprint(list(q5_2))\n",
+    "\n",
+    "# We left none as name label, since was the the label that had more accounts. "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 5 - c) How many people have in their name the string `Sara`?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 83,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2022-06-19T15:07:34.162753Z",
+     "start_time": "2022-06-19T15:07:34.138253Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'Number of Sara in people: ': 5}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "## We used $regex to find the strings that contains 'Sara' \n",
+    "\n",
+    "## We have 3 database where we can find names in the 'people_2's document\n",
+    "\n",
+    "query_1 = {'$match': {'FullName':   \n",
+    "                     {\"$regex\": 'Sara'},\n",
+    "                     }}\n",
+    "query_2 ={\n",
+    "    '$count':'Number of Sara in people: '\n",
+    "}\n",
+    "pipeline = [query_1 ,query_2]\n",
+    "  \n",
+    "q5_3 = db.people_2.aggregate(pipeline)\n",
+    "\n",
+    "pprint(list(q5_3))\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Question 5 - d) What are the top 10 most Common Names (Primary or Surnames) of people?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2022-06-19T15:07:47.412224Z",
+     "start_time": "2022-06-19T15:07:47.381878Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[{'_id': '', 'cont_last_or_first': 12},\n",
+      " {'_id': 'Bose', 'cont_last_or_first': 8},\n",
+      " {'_id': 'Ganguly', 'cont_last_or_first': 7},\n",
+      " {'_id': 'Roman', 'cont_last_or_first': 6},\n",
+      " {'_id': 'Thakur', 'cont_last_or_first': 6},\n",
+      " {'_id': 'Van', 'cont_last_or_first': 5},\n",
+      " {'_id': 'De', 'cont_last_or_first': 5},\n",
+      " {'_id': 'PrabhupÄ\\x81da', 'cont_last_or_first': 5},\n",
+      " {'_id': 'David', 'cont_last_or_first': 5},\n",
+      " {'_id': 'Dhanishta', 'cont_last_or_first': 5}]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Using the project aggregation step we have created the FullName field by applying the aggregation $split, which\n",
+    "# divides a string into an array of substrings based on a delimiter.\n",
+    "query_1 = {'$project': {'FullName':  {'$split' : [\"$FullName\", \" \"] }} \n",
+    "          \n",
+    "          }\n",
+    "## Then we unwind the field 'FullName'\n",
+    "query_2= {\n",
+    "    \"$unwind\": \"$FullName\"\n",
+    "}\n",
+    "\n",
+    "## We grouped by this previous computed field and sum its counnt\n",
+    "query_3 = {\n",
+    "    '$group':\n",
+    "        {'_id' :  '$FullName'   , \n",
+    "         'cont_last_or_first' : {'$sum' : 1}}} \n",
+    "\n",
+    "# Sort it in descending order\n",
+    "query_4 = {\n",
+    "    '$sort': {\n",
+    "        'cont_last_or_first': -1\n",
+    "    }\n",
+    "} \n",
+    "\n",
+    "# Limit to 10 values, to retrieve only the ten most common names\n",
+    "limit = {\n",
+    "    \"$limit\": 10\n",
+    "}\n",
+    "\n",
+    "pipeline = [query_1,\n",
+    "            query_2,\n",
+    "          \n",
+    "            query_3,\n",
+    "            query_4,\n",
+    "            limit\n",
+    "           ]\n",
+    "  \n",
+    "q5_3_4 = db.people_2.aggregate(pipeline)\n",
+    "pprint(list(q5_3_4))\n",
+    "\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "hide_input": false,
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.8"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": false,
+   "title_cell": "Table of Contents",
+   "title_sidebar": "Contents",
+   "toc_cell": false,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": false
+  },
+  "varInspector": {
+   "cols": {
+    "lenName": 16,
+    "lenType": 16,
+    "lenVar": 40
+   },
+   "kernels_config": {
+    "python": {
+     "delete_cmd_postfix": "",
+     "delete_cmd_prefix": "del ",
+     "library": "var_list.py",
+     "varRefreshCmd": "print(var_dic_list())"
+    },
+    "r": {
+     "delete_cmd_postfix": ") ",
+     "delete_cmd_prefix": "rm(",
+     "library": "var_list.r",
+     "varRefreshCmd": "cat(var_dic_list()) "
+    }
+   },
+   "types_to_exclude": [
+    "module",
+    "function",
+    "builtin_function_or_method",
+    "instance",
+    "_Feature"
+   ],
+   "window_display": false
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
