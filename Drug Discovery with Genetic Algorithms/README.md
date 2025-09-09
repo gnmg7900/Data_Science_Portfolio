@@ -1,4 +1,4 @@
-# Genetic Algorithms for Drug Discovery Optimization
+# Drug Discovery with Genetic Algorithms
 
 
 *Problem type:* Apply a genetic algorithm (GA) to solve an optimization problem 
