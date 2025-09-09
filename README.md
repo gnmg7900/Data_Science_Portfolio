@@ -1,3 +1,5 @@
 # Data_Science_Portfolio
 
-Welcome to my Data Science portfolio! In this portfolio, you will find a collection of projects showcasing my skills in machine learning, deep learning, natural language processing, and various other data science techniques. These projects demonstrate my ability to collect, clean, and analyze data, as well as my proficiency in using various tools and libraries to build predictive models.
+Welcome to my Data Science portfolio!🚀
+
+This portfolio highlights my experience in applying data science techniques — including machine learning, deep learning, natural language processing, and data visualization — to solve real-world problems. The projects reflect my ability to design end-to-end workflows: from data collection and preprocessing to model development, evaluation, and deployment.
