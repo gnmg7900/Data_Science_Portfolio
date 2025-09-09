@@ -1,4 +1,4 @@
-# Text Mining - NLP
+# Sentiment Analysis - NLP
 
 
 *Problem type:* NLP classification problem, consisting in predict an emotion expressed in a sentence, based on a given corpus
