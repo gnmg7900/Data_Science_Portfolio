@@ -1,4 +1,4 @@
-# Deep learning - CNN
+# Chest X-Ray Classification with CNNs
 
 
 *Problem type:* Classification problem using a deep learning model (CNN)
