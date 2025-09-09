@@ -1,4 +1,4 @@
-# Data Mining - Customer Segmentation 
+# Unsupervised Learning for Customer Segmentation
 
 *Problem type:* Customer segmentation/ Clustering 
 
