@@ -1,4 +1,4 @@
-# Machine Learning - Predictive Model 
+# Customer Purchase Prediction - ML
 
 *Problem type:* Machine Learning - Predictive Model 
 
