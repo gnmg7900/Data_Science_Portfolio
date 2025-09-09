@@ -1,4 +1,4 @@
-# Computacional Intelligence for Optmization 
+# Genetic Algorithms for Drug Discovery Optimization
 
 
 *Problem type:* Apply a genetic algorithm (GA) to solve an optimization problem 
