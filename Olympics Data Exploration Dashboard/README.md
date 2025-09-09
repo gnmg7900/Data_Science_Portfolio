@@ -1,4 +1,4 @@
-# Data Visualization 
+# Olympics Data Exploration Dashboard
 
 
 *Problem type:* Build a meaningful interactive visualization using Plotly with Dash Software 
