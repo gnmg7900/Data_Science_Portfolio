@@ -1,4 +1,4 @@
-# Big Data Analytics - Spark
+# Social Network Analysis with PySpark
 
 
 *Problem type:* Solve a problem set using pySpark on databricks 
