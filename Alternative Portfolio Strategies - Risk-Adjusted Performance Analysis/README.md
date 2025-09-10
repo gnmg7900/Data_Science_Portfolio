@@ -1,4 +1,4 @@
-# Alternative Portfolio Strategies - Risk-Adjusted Performance Analysis
+# Alternative Portfolio Strategies - Risk-Adjusted Performance Analysis 
 
 *Problem type:* Portfolio optimization and evaluation of alternative investment strategies using risk-adjusted performance metrics.
 
