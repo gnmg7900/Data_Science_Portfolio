@@ -15,8 +15,8 @@ The study further implements a rolling-window backtesting framework to assess po
 * Volatility clustering
 * Leverage effects
 * Conditional non-normality
-4. Implement a rolling-window backtesting approach with 100 randomized 2-year datasets.
-5. Evaluate the performance of multiple portfolio allocation strategies, including:
+3. Implement a rolling-window backtesting approach with 100 randomized 2-year datasets.
+4. Evaluate the performance of multiple portfolio allocation strategies, including:
 * Equally Weighted Portfolio (EWP)
 * Markowitz’s Mean-Variance Portfolio (MVP)
 * Global Minimum Variance Portfolio (GMVP)
@@ -25,4 +25,4 @@ The study further implements a rolling-window backtesting framework to assess po
 * Risk Parity Portfolio (RPP)
 * Most Diversified Portfolio (MDP)
 * Maximum Decorrelation Portfolio (MDC)
-6. Compare strategies using performance metrics such as return, volatility, Sharpe ratio, and maximum drawdown.
+5. Compare strategies using performance metrics such as return, volatility, Sharpe ratio, and maximum drawdown.
